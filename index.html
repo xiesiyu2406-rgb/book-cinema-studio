@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Book Cinema Studio</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f2ef;color:#202722;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}header{padding:16px 24px;background:#202923;color:white;display:flex;align-items:center;justify-content:space-between;gap:12px}h1{font-size:19px;margin:0}header small{color:#b9cfc2}main{max-width:1500px;margin:auto;padding:16px;display:grid;grid-template-columns:260px minmax(340px,1fr) 300px;gap:16px}.panel{background:white;border:1px solid #dddcd5;border-radius:12px;padding:16px;min-width:0}.panel h2{font-size:17px;margin:0 0 12px}button,input,textarea,select{font:inherit}button{cursor:pointer;border:1px solid #cbc9c2;border-radius:8px;background:#fff;padding:9px 11px}button:hover{background:#e8efe8}.primary{background:#226d50;color:white;border-color:#226d50}.primary:hover{background:#17543d}.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}.scene{border:1px solid #ddd7ce;border-radius:9px;padding:11px;margin-bottom:9px;cursor:pointer}.scene.active{border:2px solid #247251;background:#f0f8f1;padding:10px}.scene small{display:block;color:#666;margin-top:4px}.viewport{background:#e9e5de;border-radius:10px;display:flex;justify-content:center;padding:15px}canvas{width:min(100%,320px);aspect-ratio:9/16;box-shadow:0 8px 24px #0002;background:#fff}.fields label{display:block;font-size:13px;font-weight:600;margin-bottom:12px}.fields input,.fields textarea,.fields select{margin-top:5px;width:100%;padding:9px;border:1px solid #cfcac1;border-radius:7px;background:white}.fields textarea{min-height:105px;resize:vertical}.hint{font-size:12px;color:#686b66;line-height:1.6}#seek{width:100%}#status{font-size:12px;color:#bad9c5}@media(max-width:1000px){main{grid-template-columns:1fr}.viewport canvas{max-width:300px}}
+</style></head>
+<body><header><div><h1>📚 Book Cinema Studio</h1><small>《走出戈壁》 · 可编辑白板分镜控制台 V0.1</small></div><span id="status">在浏览器本地保存</span></header>
+<main><section class="panel"><h2>分镜列表</h2><div id="scenes"></div><div class="row"><button id="add">＋ 添加</button><button id="remove">删除</button><button id="up">上移</button><button id="down">下移</button></div><p class="hint">点击镜头切换；逐镜修改文字、主题、绘制速度和色彩。</p></section>
+<section class="panel"><h2>竖屏画面预览 · 9:16</h2><div class="viewport"><canvas id="canvas" width="720" height="1280" aria-label="白板画面预览"></canvas></div>
+<div class="row"><button class="primary" id="play">▶ 播放本镜头</button><button id="pause">暂停</button><button id="all">▶ 全片预览</button></div>
+<p id="timelabel" class="hint">当前镜头 0.0 / 0.0 秒</p><input id="seek" type="range" min="0" max="1000" value="1000" aria-label="播放进度">
+<div class="row"><button id="png">保存当前画面 PNG</button><button class="primary" id="video">导出无声 WebM</button></div>
+<p class="hint">当前版本支持720×1280无声动画导出；不包含配音、音画同步或MP4。导出支持情况取决于浏览器。</p></section>
+<section class="panel fields"><h2>逐镜质量控制</h2>
+<label>镜头名<input id="title" maxlength="70"></label>
+<label>画面标题<input id="headline" maxlength="100"></label>
+<label>口播文字<textarea id="narration" maxlength="500"></textarea></label>
+<label>绘画主题<select id="motif"><option value="desert">戈壁山峦</option><option value="book">书籍学习</option><option value="road">道路选择</option></select></label>
+<label>时长（秒）<input id="duration" type="number" min="2" max="30" step=".5"></label>
+<label>绘制速度<input id="speed" type="range" min=".3" max="3" step=".1"></label>
+<label>强调色<input id="accent" type="color"></label>
+<label>纸张背景色<input id="bg" type="color"></label>
+<div class="row"><button id="export">导出项目 JSON</button><button id="importBtn">导入 JSON</button><input id="import" type="file" accept=".json,application/json" hidden></div>
+<p class="hint">示例文案不是原书引文。请导入已审核的《走出戈壁》脚本后再进行正式制作；未经许可不要上传受版权保护的原书全文至公开仓库。</p></section></main>
+<script>
+"use strict";
+const $=id=>document.getElementById(id), KEY="book-cinema-studio-v01";
+const seed=[
+{title:"01 起点",headline:"困境，不是终点",narration:"请在这里填入已经核对原书的正式旁白。",motif:"desert",duration:7,speed:1,accent:"#a86b45",bg:"#fffaf0"},
+{title:"02 积累",headline:"把学习变成积累",narration:"在这里填入第二个镜头的正式旁白。",motif:"book",duration:7,speed:1,accent:"#357d75",bg:"#fffaf0"},
+{title:"03 选择",headline:"下一步，如何选择？",narration:"在这里填入第三个镜头的正式旁白。",motif:"road",duration:7,speed:1,accent:"#aa7844",bg:"#fffaf0"}];
+const valid=s=>({title:String(s.title||"新镜头").slice(0,70),headline:String(s.headline||"").slice(0,100),narration:String(s.narration||"").slice(0,500),motif:["desert","book","road"].includes(s.motif)?s.motif:"desert",duration:Math.min(30,Math.max(2,Number(s.duration)||7)),speed:Math.min(3,Math.max(.3,Number(s.speed)||1)),accent:/^#[\da-f]{6}$/i.test(s.accent)?s.accent:"#a86b45",bg:/^#[\da-f]{6}$/i.test(s.bg)?s.bg:"#fffaf0"});
+let scenes;try{const v=JSON.parse(localStorage.getItem(KEY));scenes=Array.isArray(v)&&v.length?v.slice(0,60).map(valid):seed.map(valid)}catch{scenes=seed.map(valid)}
+let selected=0,position=1,playing=false,allMode=false,previous=0,raf=0,recording=false;
+const canvas=$("canvas"),ctx=canvas.getContext("2d");
+function save(){try{localStorage.setItem(KEY,JSON.stringify(scenes));$("status").textContent="已自动保存至本地浏览器"}catch{$("status").textContent="无法自动保存；请导出 JSON"}}
+function line(x1,y1,x2,y2,p,color="#283b34",width=7){if(p<=0)return;ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x1+(x2-x1)*Math.min(1,p),y1+(y2-y1)*Math.min(1,p));ctx.stroke()}
+function path(points,progress,color,width=7){let remain=Math.max(0,Math.min(1,progress))*(points.length-1);for(let i=1;i<points.length;i++){const p=Math.min(1,Math.max(0,remain));line(...points[i-1],...points[i],p,color,width);remain-=1}}
+function wrap(text,maxChars){const chars=Array.from(text),out=[];while(chars.length&&out.length<5)out.push(chars.splice(0,maxChars).join(""));return out}
+function draw(scene,p){const w=720,h=1280;ctx.fillStyle=scene.bg;ctx.fillRect(0,0,w,h);ctx.strokeStyle="#e5dace";ctx.lineWidth=2;ctx.strokeRect(40,40,w-80,h-80);ctx.fillStyle=scene.accent;ctx.fillRect(80,102,Math.max(0,(w-160)*Math.min(1,p*3)),9);
+ctx.fillStyle="#576259";ctx.font="28px sans-serif";ctx.fillText("BOOK CINEMA STUDIO",80,175);
+ctx.strokeStyle="#293a32";ctx.lineWidth=8;
+const k=Math.min(1,Math.pow(p,1/scene.speed)*1.25);
+if(scene.motif==="desert"){path([[90,820],[205,655],[317,790],[435,590],[625,824]],k,scene.accent,11);path([[80,870],[180,815],[290,855],[410,785],[625,882]],Math.max(0,k-.2)*1.25,"#455c4d",8);ctx.fillStyle=scene.accent;ctx.beginPath();ctx.arc(530,500,58*Math.min(1,k*2),0,Math.PI*2);ctx.fill()}
+else if(scene.motif==="book"){path([[150,605],[300,555],[360,600],[360,860],[290,820],[150,845],[150,605]],k,"#263a34",10);path([[360,600],[420,555],[570,605],[570,845],[420,820],[360,860]],k,scene.accent,10);path([[175,655],[292,623]],Math.max(0,k-.3)*1.4,"#263a34",6);path([[430,623],[535,655]],Math.max(0,k-.3)*1.4,scene.accent,6)}
+else{path([[105,895],[230,780],[340,865],[495,625],[615,535]],k,"#30483d",13);path([[98,935],[250,830],[340,915],[545,680],[620,635]],k,scene.accent,9);path([[495,625],[450,625]],Math.max(0,k-.5)*2,"#30483d",9);path([[495,625],[492,680]],Math.max(0,k-.5)*2,"#30483d",9)}
+ctx.fillStyle="#24352d";ctx.font="bold 46px sans-serif";wrap(scene.headline,11).slice(0,3).forEach((t,i)=>ctx.fillText(t,78,300+i*65));
+ctx.fillStyle="#48554d";ctx.font="30px sans-serif";wrap(scene.narration,19).forEach((t,i)=>ctx.fillText(t,80,1010+i*48));ctx.font="25px sans-serif";ctx.fillStyle=scene.accent;ctx.fillText(scene.title,80,1190)}
+function render(){draw(scenes[selected],position);$("timelabel").textContent="当前镜头 "+(position*scenes[selected].duration).toFixed(1)+" / "+scenes[selected].duration.toFixed(1)+" 秒";$("seek").value=String(Math.round(position*1000))}
+function list(){const el=$("scenes");el.replaceChildren();scenes.forEach((s,i)=>{const box=document.createElement("div");box.className="scene"+(i===selected?" active":"");box.tabIndex=0;const strong=document.createElement("strong");strong.textContent=s.title;const small=document.createElement("small");small.textContent=s.duration+"s · "+s.headline;box.append(strong,small);box.onclick=()=>select(i);box.onkeydown=e=>{if(e.key==="Enter")select(i)};el.append(box)})}
+function fields(){for(const k of ["title","headline","narration","motif","duration","speed","accent","bg"])$(k).value=scenes[selected][k]}
+function select(i){playing=false;cancelAnimationFrame(raf);selected=i;position=1;list();fields();render()}
+function tick(ts){if(!playing)return;const dt=previous?Math.min(.1,(ts-previous)/1000):0;previous=ts;position+=dt/scenes[selected].duration;if(position>=1){if(allMode&&selected<scenes.length-1){selected++;position=0;list();fields()}else{position=1;playing=false}}render();if(playing)raf=requestAnimationFrame(tick)}
+function play(all){if(recording)return;allMode=all;playing=true;position=0;if(all){selected=0;list();fields()}previous=0;cancelAnimationFrame(raf);raf=requestAnimationFrame(tick)}
+for(const k of ["title","headline","narration","motif","duration","speed","accent","bg"])$(k).addEventListener("input",()=>{const s={...scenes[selected],[k]:$(k).value};scenes[selected]=valid(s);save();list();render()});
+$("add").onclick=()=>{scenes.splice(selected+1,0,valid({title:"新镜头",duration:7}));save();select(selected+1)};
+$("remove").onclick=()=>{if(scenes.length===1){alert("至少保留一个镜头");return}scenes.splice(selected,1);save();select(Math.min(selected,scenes.length-1))};
+function move(n){const j=selected+n;if(j<0||j>=scenes.length)return;[scenes[selected],scenes[j]]=[scenes[j],scenes[selected]];save();select(j)}
+$("up").onclick=()=>move(-1);$("down").onclick=()=>move(1);
+$("play").onclick=()=>play(false);$("all").onclick=()=>play(true);$("pause").onclick=()=>{playing=false;cancelAnimationFrame(raf)};
+$("seek").oninput=e=>{playing=false;cancelAnimationFrame(raf);position=Number(e.target.value)/1000;render()};
+function download(blob,name){const a=document.createElement("a"),u=URL.createObjectURL(blob);a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
+$("png").onclick=()=>canvas.toBlob(blob=>blob&&download(blob,"book-cinema-frame.png"),"image/png");
+$("export").onclick=()=>download(new Blob([JSON.stringify({version:1,scenes},null,2)],{type:"application/json"}),"book-cinema-project.json");
+$("importBtn").onclick=()=>$("import").click();
+$("import").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const o=JSON.parse(await file.text());if(!Array.isArray(o.scenes)||o.scenes.length<1||o.scenes.length>60)throw Error("项目包含的镜头数应为 1~60");scenes=o.scenes.map(valid);save();select(0)}catch(err){alert("导入失败："+err.message)}e.target.value=""};
+$("video").onclick=async()=>{if(recording)return;if(!canvas.captureStream||!window.MediaRecorder){alert("此浏览器不支持视频录制");return}const mime=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"].find(x=>MediaRecorder.isTypeSupported(x));if(!mime){alert("浏览器不支持 WebM 编码");return}playing=false;cancelAnimationFrame(raf);recording=true;$("video").disabled=true;$("status").textContent="正在实时导出无声 WebM…";const before=selected;try{const rec=new MediaRecorder(canvas.captureStream(30),{mimeType:mime,videoBitsPerSecond:3000000});let chunks=[];rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};const done=new Promise((resolve,reject)=>{rec.onerror=reject;rec.onstop=()=>resolve()});rec.start();for(let i=0;i<scenes.length;i++){selected=i;list();fields();const frames=Math.ceil(scenes[i].duration*30);for(let f=0;f<frames;f++){position=Math.min(1,f/frames);render();await new Promise(r=>setTimeout(r,1000/30))}}rec.stop();await done;download(new Blob(chunks,{type:mime}),"book-cinema-silent.webm");$("status").textContent="视频已生成"}catch(err){alert("导出失败："+err.message)}finally{recording=false;$("video").disabled=false;select(before)}};
+save();select(0);
+</script></body></html>
